@@ -120,12 +120,13 @@ def vae_cvae_synthetic_generation(df,categorical_columns,condition_columns,lr_ra
     cvae = Model([encoder_input,conditional_input], z_decoded, name ="cvae")
 
 # Compute the VAE loss
+    beta=1
     reconstruction_loss = binary_crossentropy(encoder_input,z_decoded)
     reconstruction_loss *= input_dim
     kl_loss = 1 + z_log_var - K.square(z_mean) - K.exp(z_log_var)
     kl_loss = K.sum(kl_loss, axis=-1)
     kl_loss *= -0.5
-    cvae_total_loss = K.mean(reconstruction_loss + kl_loss)
+    cvae_total_loss = K.mean(reconstruction_loss + kl_loss*beta)
 
 # Compile the CVAE model
     cvae.add_loss(cvae_total_loss)
@@ -151,13 +152,12 @@ def generate_synthetic_data(one_hot_encoder,condition_encoder,n_samples,df,featu
         synthetic_df = pd.DataFrame(decoded_features, columns=categorical_columns)
         synthetic_condition_df = pd.DataFrame(decoded_condition, columns=condition_columns)
         synthetic_data = pd.concat([synthetic_df, synthetic_condition_df], axis=1)
-        synthetic_data['VIN'] = vin
-        # synthetic=synthetic.append(synthetic_data) 
         synthetic=pd.concat([synthetic,synthetic_data])
     synthetic = synthetic[df.columns]
-    synthetic = pd.concat([synthetic,df],ignore_index=True)
 
     return synthetic
+
+
 
 #*********************************************************************************************************************************
 def vae_generated_synthetic_data(df,categorical_columns,lr_rate,latent_dim,epochs,batch_size):
@@ -198,12 +198,13 @@ def vae_generated_synthetic_data(df,categorical_columns,lr_rate,latent_dim,epoch
     vae = Model(encoder_input, vae_output, name='vae')
 
     # Compute the VAE loss
+    beta=1
     reconstruction_loss = binary_crossentropy(encoder_input,vae_output)
     reconstruction_loss *= input_dim
     kl_loss = 1 + z_log_var - K.square(z_mean) - K.exp(z_log_var)
     kl_loss = K.sum(kl_loss, axis=-1)
     kl_loss *= -0.5
-    vae_total_loss = K.mean(reconstruction_loss + kl_loss)
+    vae_total_loss = K.mean(reconstruction_loss + kl_loss*beta)
 
     # Compile the CVAE model
     vae.add_loss(vae_total_loss)
@@ -235,7 +236,6 @@ def generate_synthetic_data_vae(enc,encoded_cols,n_samples,df,categorical_column
                     # Add the new samples to the synthetic data
                     decoded_samples = enc.inverse_transform(new_samples)
                     synthetic=pd.DataFrame(decoded_samples,columns=categorical_columns)
-                    synthetic['VIN']=vin
                     synthetic_data=pd.concat([synthetic_data,synthetic])
             return synthetic_data
 
@@ -254,7 +254,7 @@ def copulagan(df,synthesizer,n_samples):
         synthetic_data = pd.concat([synthetic_data,synthetic])
         
     # Combine the synthetic data into a single DataFrame
-    synthetic_data = pd.concat([synthetic_data,df])
+    # synthetic_data = pd.concat([synthetic_data,df])
 
     return synthetic_data
 
@@ -270,7 +270,7 @@ def fast_ml(df,synthesizer,n_samples):
         synthetic_data = pd.concat([synthetic_data,synthetic])
         
     # Combine the synthetic data into a single DataFrame
-    synthetic_data = pd.concat([synthetic_data,df])
+    # synthetic_data = pd.concat([synthetic_data,df])
 
     return synthetic_data
 
@@ -286,7 +286,7 @@ def gaussian_copula(df,synthesizer,n_samples):
         synthetic_data = pd.concat([synthetic_data,synthetic])
         
     # Combine the synthetic data into a single DataFrame
-    synthetic_data = pd.concat([synthetic_data,df])
+    # synthetic_data = pd.concat([synthetic_data,df])
 
     return synthetic_data
 
@@ -302,7 +302,7 @@ def ctgan(df,synthesizer,n_samples):
         synthetic_data = pd.concat([synthetic_data,synthetic])
         
     # Combine the synthetic data into a single DataFrame
-    synthetic_data = pd.concat([synthetic_data,df])
+    # synthetic_data = pd.concat([synthetic_data,df])
 
     return synthetic_data
 
@@ -319,8 +319,15 @@ def tvae(df,synthesizer,n_samples):
         synthetic_data = pd.concat([synthetic_data,synthetic])
         
     # Combine the synthetic data into a single DataFrame
-    synthetic_data = pd.concat([synthetic_data,df])
+    # synthetic_data = pd.concat([synthetic_data,df])
 
     return synthetic_data
 
+
+# @st.cache
+def convert_df(df):
+    return df.to_csv().encode('utf-8')
+
+# def user_preference_csv(user_choice):
+#     if user_choice=='CVAE':
 

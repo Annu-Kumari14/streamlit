@@ -10,7 +10,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.pipeline import Pipeline
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.ensemble import RandomForestClassifier
-from feature_user import vae_cvae_synthetic_generation, generate_synthetic_data,vae_generated_synthetic_data,generate_synthetic_data_vae,copulagan,fast_ml,gaussian_copula,ctgan,tvae
+from feature_user import vae_cvae_synthetic_generation, generate_synthetic_data,vae_generated_synthetic_data,generate_synthetic_data_vae,copulagan,fast_ml,gaussian_copula,ctgan,tvae,convert_df
 import streamlit.components.v1 as components
 from sdv.metadata import SingleTableMetadata
 from sdv.evaluation.single_table import evaluate_quality
@@ -20,6 +20,7 @@ from sdv.single_table import GaussianCopulaSynthesizer
 from sdv.single_table import CTGANSynthesizer
 from sdv.single_table import TVAESynthesizer
 from sdmetrics.reports.single_table import QualityReport
+from streamlit import download_button
 import json
 from functools import reduce
 
@@ -139,23 +140,23 @@ elif current_page == "Upload-generate-check-quality-score":
         container = st.container()
         expander_visible = container.columns(1)[0].checkbox("Click the checkbox to know more about conditional columns", key="5")
         if expander_visible:
-            st.write("A conditional column in CVAE is a column of data that is used to condition the output of the model. This means that the model will generate output that is specific to the data in the conditional column. For example, if the conditional column is a label, the model will generate output that is consistent with that label. Conditional columns can be used to improve the accuracy and performance of CVAE models.")
-            st.write("Make sure you don't input VIN/USER_ID/NAME")
+            st.write("A conditional column in CVAE is a column of data that is used to condition the output of the model. For example if a VIN/user  has only 3 preferences of Genre in real data and you want the same 3 prefernces in your synthetic data as well then VIN and Genre will come in your conditional input.")
+            # st.write("Make sure you don't input VIN/USER_ID/NAME")
             st.write("Columns entered in input column can't be re-entered.")
 
         select_conditional_column = st.multiselect('Select conditional columns for CVAE',options=list(dataframe.columns))
         st.write(select_conditional_column)
         container = st.container()
-        expander_visible1 = container.columns(1)[0].checkbox("Click the checkbox to know more about input columns", key="6")
+        expander_visible1 = container.columns(1)[0].checkbox("Click the checkbox to know more about input columns for VAE", key="6")
         if expander_visible1:
             st.write("Input columns can be features/labels/targets/ouputs.")
-            st.write("Make sure you don't input VIN/USER_ID/NAME")
+          
 
         select_input_column_vae = st.multiselect('Select input columns for VAE',options=list(dataframe.columns),key="2")
         st.write(select_input_column_vae)
-        st.info('Primary key should be the unique identified column such as user_id/VIN/Name. Metadata is a set of data that describes the data itself. This includes information such as the data types, the column names, and the relationships between the columns. Metadata is used by the synthesizer to generate synthetic data that is similar to the real data.', icon="ℹ️")
-        pk_metadata=st.selectbox('Select your primary key to generate metadata',options=list(dataframe.columns))
-        st.write(pk_metadata)
+        # st.info('Primary key should be the unique identified column such as user_id/VIN/Name. Metadata is a set of data that describes the data itself. This includes information such as the data types, the column names, and the relationships between the columns. Metadata is used by the synthesizer to generate synthetic data that is similar to the real data.', icon="ℹ️")
+        # pk_metadata=st.selectbox('Select your primary key to generate metadata',options=list(dataframe.columns))
+        # st.write(pk_metadata)
         lr_rate=st.number_input('Input the learning rate',min_value=0.01)
         st.write(lr_rate)
         container = st.container()
@@ -164,285 +165,549 @@ elif current_page == "Upload-generate-check-quality-score":
             st.write("The latent dimension is defined by the number of dimensions of the mean and variance vectors. Each dimension in the latent space can be considered as a latent variable or latent feature that captures certain characteristics of the input data. By choosing an appropriate latent dimension, the VAE can learn a compact representation of the data that captures the most important aspects while discarding unnecessary details.")
             st.write("The choice of latent dimension is a hyperparameter that needs to be tuned during the training process to achieve a balance between representation power and simplicity.")
             st.write("NOTE- preferably the latent space should be less than that of the input dimension")
-        latent_dims=st.number_input('Input the latent dimension',min_value=1)
+        latent_dims=st.number_input('Input the latent dimension',min_value=20)
         st.write(latent_dims)
         select_epoch=st.number_input('Input the epoch',min_value=1)
         st.write(select_epoch)
         select_batchsize=st.number_input('Input the batch size',min_value=1)
         st.write(select_batchsize)
-        samples = st.number_input('How many number of rows you want to generate?',min_value=1)
+        samples = st.slider('How many number of rows you want to generate?',0,250,500)
         st.write(samples)
+        # st.info("Generating Synthetic Data...")
+
+
+        # synthetic_cvae=pd.DataFrame()
+        # synthetic_vae=pd.DataFrame()
+        # synthetic_copula=pd.DataFrame()
+        # synthetic_fastml=pd.DataFrame()
+        # synthetic_gaussian=pd.DataFrame()
+        # synthetic_ctgan=pd.DataFrame()
+        # synthetic_tvae=pd.DataFrame()
+
+        synthetic_cvae=None
+        synthetic_vae=None
+        synthetic_copula=None
+        synthetic_fastml=None
+        synthetic_gaussian=None
+        synthetic_ctgan=None
+        synthetic_tvae=None
+
+        # syn1=pd.DataFrame()
+        # syn2=pd.DataFrame()
+        # syn3=pd.DataFrame()
+        # syn4=pd.DataFrame()
+        # syn5=pd.DataFrame()
+        # syn6=pd.DataFrame()
+        # syn7=pd.DataFrame()
+
+
         
-        if st.button('Generate and Save Synthetic Data'):
+        # def generate_synthetic_datas():   
+        #     global dataframe 
+        #     global synthetic_cvae
+        #     global synthetic_vae
+        #     global synthetic_copula
+        #     global synthetic_fastml
+        #     global synthetic_gaussian
+        #     global synthetic_ctgan
+        #     global synthetic_tvae
+        #     uploader_file = st.file_uploader("Upload Data") 
+        #     if uploader_file is not None: 
+        #         dataframe = pd.read_csv(uploader_file)
+        if st.button('Generate Synthetic Data'):
             start_time = time.time()
             with st.spinner('Loading...'):
-                 time.sleep(78)
-            st.write('For CVAE')
+                time.sleep(78)
+            # st.write('For CVAE')
             one_hot_encoder,condition_encoder,dataframe,features,condition_features,select_input_column,select_conditional_column,encoder,decoder,latent_dims,condition_data,encoded_features = vae_cvae_synthetic_generation(dataframe,select_input_column,select_conditional_column,lr_rate,latent_dims,select_epoch,select_batchsize)
-            synthetic = generate_synthetic_data(one_hot_encoder,condition_encoder,samples,dataframe,features,condition_features,select_input_column,select_conditional_column,encoder,decoder,latent_dims,condition_data,encoded_features)
-            
+            synthetic_cvae = generate_synthetic_data(one_hot_encoder,condition_encoder,samples,dataframe,features,condition_features,select_input_column,select_conditional_column,encoder,decoder,latent_dims,condition_data,encoded_features)
+            # synthetic_cvae=pd.concat([synthetic_cvae,syn1])
         
-            st.write(synthetic)
-            st.write('Shape of synthetic data:',synthetic.shape),
-            synthetic.to_csv('synthetic_data_cvae.csv', index=False)
-            st.success(' VAE_CVAE Synthetic Data generated and saved successfully.')
+            # st.write(synthetic)
+            st.write('Shape of synthetic data cvae:',synthetic_cvae.shape)
+            # csv = convert_df(synthetic)
+            # st.download_button(
+            #     label="Download CSV",
+            #     data=csv,
+            #     file_name='sd_cvae.csv',
+            #     mime='text/csv',
+            #     )
+            # synthetic.to_csv('synthetic_data_cvae.csv', index=False)
+            st.success('CVAE Synthetic Data generated successfully.')
 
-            st.write('For VAE')
+            # st.stop()
+
+            # st.write('For VAE')
             # select_input_column_vae = st.multiselect('Select input columns for VAE',options=list(dataframe.columns),key="2")
             # st.write(select_input_column_vae)
             enc,encoded_cols,df,select_input_column_vae,encoder,decoder,latent_dim=vae_generated_synthetic_data(dataframe,select_input_column_vae,lr_rate,latent_dims,select_epoch,select_batchsize)
             synthetic_vae=generate_synthetic_data_vae(enc,encoded_cols,samples,dataframe,select_input_column_vae,encoder,decoder,latent_dims)
-            st.write(synthetic_vae)
+            # synthetic_vae=pd.concat([synthetic_vae,syn2])
+            # st.write(synthetic_vae)
             st.write('Shape of synthetic data vae:',synthetic_vae.shape)
-            synthetic_vae.to_csv('synthetic_data_vae.csv', index=False)
-            st.success(' VAE Synthetic Data generated and saved successfully.')
+            # csv1 = convert_df(synthetic_vae)
+            # st.download_button(
+            #     label="Download CSV",
+            #     data=csv1,
+            #     file_name='sd_vae.csv',
+            #     mime='text/csv',
+            #     )
+            # synthetic_vae.to_csv('synthetic_data_vae.csv', index=False)
+            st.success(' VAE Synthetic Data generated successfully.')
 
-            st.write('For CopulaGAN')
+            # st.write('For CopulaGAN')
             metadata = SingleTableMetadata()
             metadata.detect_from_dataframe(data=dataframe)
             metadata.validate()
             synthesizer = CopulaGANSynthesizer(metadata)
             synthetic_copula=copulagan(dataframe,synthesizer,samples)
-            st.write(synthetic_copula)
+            # synthetic_copula=pd.concat([synthetic_copula,syn3])
+            # st.write(synthetic_copula)
             st.write('Shape of synthetic data copulagan:',synthetic_copula.shape)
-            synthetic_copula.to_csv('synthetic_data_copula.csv', index=False)
-            st.success(' Copula Synthetic Data generated and saved successfully.')
+            # csv2 = convert_df(synthetic_copula)
+            # st.download_button(
+            #     label="Download CSV",
+            #     data=csv2,
+            #     file_name='sd_copula.csv',
+            #     mime='text/csv',
+            #     )
+            # synthetic_copula.to_csv('synthetic_data_copula.csv', index=False)
+            st.success('CopulaGAN Synthetic Data generated successfully.')
 
-            st.write('For FAST_ML')
+            # st.write('For FAST_ML')
             synthesizer_fastml = SingleTablePreset(metadata, name='FAST_ML')
             synthetic_fastml=fast_ml(dataframe,synthesizer_fastml,samples)
-            st.write(synthetic_fastml)
+            # synthetic_fastml=pd.concat([synthetic_fastml,syn4])
+            # st.write(synthetic_fastml)
             st.write('Shape of synthetic data fast_ml:',synthetic_fastml.shape)
-            synthetic_fastml.to_csv('synthetic_data_fastml.csv', index=False)
-            st.success(' Fast_ML Synthetic Data generated and saved successfully.')
+            # csv3 = convert_df(synthetic_fastml)
+            # st.download_button(
+            #     label="Download CSV",
+            #     data=csv3,
+            #     file_name='sd_fastml.csv',
+            #     mime='text/csv',
+            #     )
+            # synthetic_fastml.to_csv('synthetic_data_fastml.csv', index=False)
+            st.success(' Fast_ML Synthetic Data generated successfully.')
 
-            st.write('GaussianCopula')
+            # st.write('GaussianCopula')
             synthesizer_gaussian = GaussianCopulaSynthesizer(metadata)
             synthetic_gaussian=gaussian_copula(dataframe,synthesizer_gaussian,samples)
-            st.write(synthetic_gaussian)
+            # synthetic_gaussian=pd.concat([synthetic_gaussian,syn5])
+            # st.write(synthetic_gaussian)
             st.write('Shape of synthetic data gaussian copula:',synthetic_gaussian.shape)
-            synthetic_fastml.to_csv('synthetic_data_gaussian_copula.csv', index=False)
-            st.success(' Gaussian Copula Synthetic Data generated and saved successfully.')
+            # csv4 = convert_df(synthetic_gaussian)
+            # st.download_button(
+            #     label="Download CSV",
+            #     data=csv4,
+            #     file_name='sd_gaussian.csv',
+            #     mime='text/csv',
+            #     )
+            # synthetic_gaussian.to_csv('synthetic_data_gaussian_copula.csv', index=False)
+            st.success(' Gaussian Copula Synthetic Data generated successfully.')
 
-            st.write('CTGAN')
+            # st.write('CTGAN')
             synthesizer_ctgan = CTGANSynthesizer(metadata)
             synthetic_ctgan=ctgan(dataframe,synthesizer_ctgan,samples)
-            st.write(synthetic_ctgan)
+            # synthetic_ctgan=pd.concat([synthetic_ctgan,syn6])
+            # st.write(synthetic_ctgan)
             st.write('Shape of synthetic data CTGAN:',synthetic_ctgan.shape)
-            synthetic_ctgan.to_csv('synthetic_data_CTGAN.csv', index=False)
-            st.success('CTGAN Synthetic Data generated and saved successfully.')
+            # csv5 = convert_df(synthetic_ctgan)
+            # st.download_button(
+            #     label="Download CSV",
+            #     data=csv5,
+            #     file_name='sd_ctgan.csv',
+            #     mime='text/csv',
+            #     )
+            # synthetic_ctgan.to_csv('synthetic_data_CTGAN.csv', index=False)
+            st.success('CTGAN Synthetic Data generated successfully.')
 
-            st.write('TVAE')
+            # st.write('TVAE')
             synthesizer_tvae = TVAESynthesizer(metadata)
             synthetic_tvae=tvae(dataframe,synthesizer_tvae,samples)
-            st.write(synthetic_tvae)
+            # synthetic_tvae=pd.concat([synthetic_tvae,syn7])
+            # st.write(synthetic_tvae)
             st.write('Shape of synthetic data TVAE:',synthetic_tvae.shape)
-            synthetic_tvae.to_csv('synthetic_data_TVAE.csv', index=False)
-            st.success('TVAE Synthetic Data generated and saved successfully.')
+            # csv6 = convert_df(synthetic_tvae)
+            # st.download_button(
+            #     label="Download CSV",
+            #     data=csv6,
+            #     file_name='sd_tvae.csv',
+            #     mime='text/csv',
+            #     )
+            # synthetic_tvae.to_csv('synthetic_data_TVAE.csv', index=False)
+            st.success('TVAE Synthetic Data generated successfully.')
 
 
 
-             
+            # st.button('Check Quality Score')
+                # start_time = time.time()
+            # dataframe=dataframe.drop('VIN',axis=1)
+                # synthetic=pd.read_csv('synthetic_data_cvae.csv')
+            # synthetic0=synthetic_cvae.drop('VIN',axis=1)
 
+                # synthetic1=pd.read_csv('synthetic_data_vae.csv')
+            # synthetic1=synthetic_vae.drop('VIN',axis=1)
 
+                # synthetic2=pd.read_csv('synthetic_data_copula.csv')
+            # synthetic2=synthetic_copula.drop('VIN',axis=1)
 
-            end_time = time.time()
-            execution_time = end_time - start_time
-            st.write(f"Execution time: {execution_time:.2f} seconds")
+                # synthetic3=pd.read_csv('synthetic_data_fastml.csv')
+            # synthetic3=synthetic_fastml.drop('VIN',axis=1)
 
+                # synthetic4=pd.read_csv('synthetic_data_gaussian_copula.csv')
+            # synthetic4=synthetic_gaussian.drop('VIN',axis=1)
 
+                # synthetic5=pd.read_csv('synthetic_data_CTGAN.csv')
+            # synthetic5=synthetic_ctgan.drop('VIN',axis=1)
 
+                # synthetic6=pd.read_csv('synthetic_data_TVAE.csv')
+            # synthetic6=synthetic_tvae.drop('VIN',axis=1)
 
+            metadata = SingleTableMetadata()
+            metadata.detect_from_dataframe(data=dataframe)
+            metadata.validate()
+            quality_report = evaluate_quality(
+                dataframe,
+                synthetic_cvae,
+                metadata)
+            a=(f"{round((quality_report.get_score()) * 100)}%")
+            x1=quality_report.get_details(property_name='Column Shapes')
 
+            quality_report = evaluate_quality(
+                dataframe,
+                synthetic_vae,
+                metadata
+                )
+            b=(f"{round((quality_report.get_score()) * 100)}%")
+            x2=quality_report.get_details(property_name='Column Shapes')
 
+            quality_report = evaluate_quality(
+                dataframe,
+                synthetic_copula,
+                metadata
+                )
+            c=(f"{round((quality_report.get_score()) * 100)}%")
+            x3=quality_report.get_details(property_name='Column Shapes')
 
+            quality_report = evaluate_quality(
+                dataframe,
+                synthetic_fastml,
+                metadata
+                )
+            d=(f"{round((quality_report.get_score()) * 100)}%")
+            x4=quality_report.get_details(property_name='Column Shapes')
 
+            quality_report = evaluate_quality(
+                dataframe,
+                synthetic_gaussian,
+                metadata
+                )
+            e=(f"{round((quality_report.get_score()) * 100)}%")
+            x5=quality_report.get_details(property_name='Column Shapes')
 
+            quality_report = evaluate_quality(
+                dataframe,
+                synthetic_ctgan,
+                metadata
+                )
+            f=(f"{round((quality_report.get_score()) * 100)}%")
+            x6=quality_report.get_details(property_name='Column Shapes')
 
-
-
-
-        # if st.button('Check Quality Score'):
-        #         dataframe=dataframe.drop('VIN',axis=1)
-        #         synthetic=pd.read_csv('synthetic_data_cvae.csv')
-        #         synthetic=synthetic.drop('VIN',axis=1)
-        #         metadata = SingleTableMetadata()
-        #         metadata.detect_from_dataframe(data=dataframe)
-        #         metadata.validate()
-        #         quality_report = evaluate_quality(
-        #             dataframe,
-        #             synthetic,
-        #             metadata
-        #         )
-                # st.write(quality_report)
-                # st.write(quality_report.get_score())
-                # st.write(quality_report.get_details(property_name='Column Shapes'))
-
-
-
-
-        if st.button('Check Quality Score'):
-                start_time = time.time()
-                dataframe=dataframe.drop('VIN',axis=1)
-                synthetic=pd.read_csv('synthetic_data_cvae.csv')
-                synthetic=synthetic.drop('VIN',axis=1)
-
-                synthetic1=pd.read_csv('synthetic_data_vae.csv')
-                synthetic1=synthetic1.drop('VIN',axis=1)
-
-                synthetic2=pd.read_csv('synthetic_data_copula.csv')
-                synthetic2=synthetic2.drop('VIN',axis=1)
-
-                synthetic3=pd.read_csv('synthetic_data_fastml.csv')
-                synthetic3=synthetic3.drop('VIN',axis=1)
-
-                synthetic4=pd.read_csv('synthetic_data_gaussian_copula.csv')
-                synthetic4=synthetic4.drop('VIN',axis=1)
-
-                synthetic5=pd.read_csv('synthetic_data_CTGAN.csv')
-                synthetic5=synthetic5.drop('VIN',axis=1)
-
-                synthetic6=pd.read_csv('synthetic_data_TVAE.csv')
-                synthetic6=synthetic6.drop('VIN',axis=1)
-
-
-                metadata = {
-                    "primary_key": pk_metadata,
-                    "columns": {}
-                    }
-                for _, row in dataframe.iterrows():
-                    for column_name, value in row.items():
-                        if column_name != metadata["primary_key"]:
-                            if column_name not in metadata["columns"]:
-                                column_type = "numerical" if pd.api.types.is_numeric_dtype(dataframe[column_name]) else "categorical"
-                                metadata["columns"][column_name] = {"sdtype": column_type}
-                metadata_json = json.dumps(metadata, indent=4)
-                # st.write(metadata_json)
-                report = QualityReport()
-                # q_report=report.generate(dataframe,
-                #  synthetic, 
-                #  metadata)
-                # st.write(q_report.get_score()).
-                # rg=report.generate(dataframe, synthetic, metadata)
-                # st.write(rg)
-                
-                report.generate(dataframe, synthetic, metadata)
-                a=(f"{round((report.get_score()) * 100)}%")
-                # st.write(a)
-                # st.write('Quality report VAE_CVAE',report.get_details(property_name='Column Shapes'))
-                x1=report.get_details(property_name='Column Shapes')
-
-                # report2 = QualityReport()
-                report.generate(dataframe, synthetic1, metadata)
-                b=(f"{round((report.get_score()) * 100)}%")
-                # st.write(b)
-                # st.write('Quality report VAE',report.get_details(property_name='Column Shapes'))
-                x2=report.get_details(property_name='Column Shapes')
-
-                report.generate(dataframe, synthetic2, metadata)
-                c=(f"{round((report.get_score()) * 100)}%")
-                # st.write(c)
-                # st.write('Quality report CopulaGAN',report.get_details(property_name='Column Shapes'))
-                x3=report.get_details(property_name='Column Shapes')
-
-                report.generate(dataframe, synthetic3, metadata)
-                d=(f"{round((report.get_score()) * 100)}%")
-                # st.write(d)
-                # st.write('Quality report FAST_ML',report.get_details(property_name='Column Shapes'))
-                x4=report.get_details(property_name='Column Shapes')
-
-                report.generate(dataframe, synthetic4, metadata)
-                e=(f"{round((report.get_score()) * 100)}%")
-                # st.write(e)
-                # st.write('Quality report Gaussian Copula',report.get_details(property_name='Column Shapes'))
-                x5=report.get_details(property_name='Column Shapes')
-
-                report.generate(dataframe, synthetic5, metadata)
-                f=(f"{round((report.get_score()) * 100)}%")
-                # st.write(f)
-                # st.write('Quality report CTGAN',report.get_details(property_name='Column Shapes'))
-                x6=report.get_details(property_name='Column Shapes')
-
-                report.generate(dataframe, synthetic6, metadata)
-                g=(f"{round((report.get_score()) * 100)}%")
-                # st.write(g)
-                # st.write('Quality report TVAE',report.get_details(property_name='Column Shapes'))
-                x7=report.get_details(property_name='Column Shapes')
-                # check_winner = {'VAE-CVAE': a, 'VAE': b, 'CopulaGAN': c, 'Fast_ML': d,'Gaussian Copula':e,'CTGAN':f,'TVAE':g}
-                # winner = max(check_winner, key=check_winner.get)
-                # st.markdown("<h4 style='text-align: left; color: #e4b016;'>The best quality score is: {}</h4>".format(winner), unsafe_allow_html=True)
-
+            quality_report = evaluate_quality(
+                dataframe,
+                synthetic_tvae,
+                metadata
+                )
+            g=(f"{round((quality_report.get_score()) * 100)}%")
+            x7=quality_report.get_details(property_name='Column Shapes')
 
 
                 
-                scores_df = pd.DataFrame({ 'Model': ['CVAE', 'VAE', 'CopulaGAN', 'FAST_ML', 'Gaussian Copula', 'CTGAN', 'TVAE'], 'Quality Score': [a, b, c, d, e, f, g] })  
-                # st.dataframe(scores_df)
-                # scores_df = scores_df.sort_values('Quality Score')
-                # st.line_chart(scores_df)
-                # st.line_chart(scores_df.drop(['Model'], axis=1))
-                scores_df_sorted = scores_df.sort_values('Quality Score',ascending= False)
-                st.dataframe(scores_df_sorted)
+            scores_df = pd.DataFrame({ 'Model': ['CVAE','VAE','CopulaGAN', 'FAST_ML', 'Gaussian Copula', 'CTGAN', 'TVAE'], 'Quality Score': [a, b, c, d, e, f, g] })  
+
+            scores_df_sorted = scores_df.sort_values('Quality Score',ascending= False)
+            st.dataframe(scores_df_sorted)
                 # st.line_chart(scores_df_sorted, x='Model', y='Quality Score')
                 # scores_df_sorted['Quality Score'] = scores_df_sorted['Quality Score'].sort_index(ascending=True)
                 # scores_df_sorted['Quality Score'] = scores_df_sorted['Quality Score'][::-1] 
-                st.line_chart(scores_df_sorted, x='Model', y='Quality Score')
-
-                # st.line_chart(scores_df,x='Model',y='Quality Score')
-
-
-                model_names = ['CVAE', 'VAE', 'CopulaGAN', 'FAST_ML', 'Gaussian Copula', 'CTGAN', 'TVAE']
-                reshaped_df = pd.DataFrame(columns=['Column', 'Metric'])
-                dfs = [x1, x2, x3, x4, x5, x6, x7]
-                for df, model in zip(dfs, model_names):
-                    df['Quality Score of ' + model] = df['Quality Score']
-                    reshaped_df = pd.concat([reshaped_df, df['Quality Score of ' + model]], axis=1)
-                reshaped_df['Column'] = dfs[0]['Column']
-                reshaped_df['Metric'] = dfs[0]['Metric']
-                st.write(reshaped_df)
-                var=reshaped_df['Column']
-                reshaped_df=reshaped_df.set_index('Column')
-                reshaped_df=reshaped_df.drop(columns='Metric', axis=1)
-                st.line_chart(reshaped_df)
-
-                # st.line_chart(reshaped_df.drop[]))
-
-
-
-                check_winner = {'CVAE': a, 'VAE': b, 'CopulaGAN': c, 'Fast_ML': d,'Gaussian Copula':e,'CTGAN':f,'TVAE':g}
-                winner = max(check_winner, key=check_winner.get)
-                st.markdown("<h4 style='text-align: left; color: #e4b016;'>The best quality score is: {}</h4>".format(winner), unsafe_allow_html=True)
-                end_time = time.time()
-                execution_time = end_time - start_time
-                st.write(f"Execution time: {execution_time:.2f} seconds")
-                
-
-
-
-
-
-                
-
-
-                
-
-
-
-
-
-
-
-       
-
-
-
-
-
-
-
-
-
+            st.line_chart(scores_df_sorted, x='Model', y='Quality Score')
 
         
-        
+            model_names = ['CVAE','VAE','CopulaGAN', 'FAST_ML', 'Gaussian Copula', 'CTGAN', 'TVAE']
+            reshaped_df = pd.DataFrame(columns=['Column', 'Metric'])
+            dfs = [x1, x2, x3, x4, x5, x6, x7]
+            for df, model in zip(dfs, model_names):
+                df['Quality Score of ' + model] = df['Quality Score']
+                reshaped_df = pd.concat([reshaped_df, df['Quality Score of ' + model]], axis=1)
+            reshaped_df['Column'] = dfs[0]['Column']
+            reshaped_df['Metric'] = dfs[0]['Metric']
+            st.write(reshaped_df)
+            var=reshaped_df['Column']
+            reshaped_df=reshaped_df.set_index('Column')
+            reshaped_df=reshaped_df.drop(columns='Metric', axis=1)
+            st.line_chart(reshaped_df)
 
- 
+
+            check_winner = {'CVAE': a,'VAE': b ,'CopulaGAN': c, 'Fast_ML': d,'Gaussian Copula':e,'CTGAN':f,'TVAE':g}
+            winner = max(check_winner, key=check_winner.get)
+            st.markdown("<h4 style='text-align: left; color: #e4b016;'>The best quality score is: {}</h4>".format(winner), unsafe_allow_html=True)
+            end_time = time.time()
+            execution_time = end_time - start_time
+            st.write(f"Execution time: {execution_time:.2f} seconds")
+            if winner == 'CVAE':
+
+                csv = convert_df(synthetic_cvae)
+                st.download_button(
+                    label="Download CSV",
+                    data=csv,
+                    file_name='synthetic_data_cvae.csv',
+                    mime='text/csv',
+                    )
+            elif winner == 'VAE':
+
+                csv = convert_df(synthetic_vae)
+                st.download_button(
+                    label="Download CSV",
+                    data=csv,
+                    file_name='synthetic_data_vae.csv',
+                    mime='text/csv',
+                    )
+
+            elif winner == 'CopulaGAN':
+
+                csv = convert_df(synthetic_copula)
+                st.download_button(
+                    label="Download CSV",
+                    data=csv,
+                    file_name='synthetic_data_copula.csv',
+                    mime='text/csv',
+                    )
+                
+            elif winner == 'FAST_ML':
+                csv = convert_df(synthetic_fastml)
+                st.download_button(
+                    label="Download CSV",
+                    data=csv,
+                    file_name='synthetic_data_fastml.csv',
+                    mime='text/csv',
+                    )
+                    
+            elif winner == 'Gaussian Copula':
+                csv = convert_df(synthetic_gaussian)
+                st.download_button(
+                    label="Download CSV",
+                    data=csv,
+                    file_name='synthetic_data_gaussian.csv',
+                    mime='text/csv',
+                    )
+                    
+            elif winner == 'CTGAN':
+                csv = convert_df(synthetic_ctgan)
+                st.download_button(
+                    label="Download CSV",
+                    data=csv,
+                    file_name='synthetic_data_ctgan.csv',
+                    mime='text/csv',
+                    )
+                    
+            elif winner == 'TVAE':
+                csv = convert_df(synthetic_tvae)
+                st.download_button(
+                    label="Download CSV",
+                    data=csv,
+                    file_name='synthetic_data_tvae.csv',
+                    mime='text/csv',
+                    )
+            
+
+            # download_options = {
+            #     'CVAE':synthetic_cvae,
+            #     'VAE':synthetic_vae,
+            #     'CopulaGAN':synthetic_copula,
+            #     'FAST_ML':synthetic_fastml,
+            #     'Gaussian Copula':synthetic_gaussian,
+            #     'CTGAN':synthetic_ctgan,
+            #     'TVAE':synthetic_tvae
+            #     }
+            # if 'selected_option_column' not in st.session_state:
+            #     st.session_state.selected_option_column = None   
+            # download_option = st.selectbox("Which synthetic data do you want to download?", list(download_options.keys()))
+            # selected_dataframe = download_options[download_option]
+            # st.session_state.selected_option_column = selected_dataframe
+            # stored_option_column = st.session_state.selected_option_column
+            
+            # st.write(stored_option_column)
+            # csv = convert_df(stored_option_column)
+            # st.download_button(
+            #         label="Download CSV",
+            #         data=csv,
+            #         file_name='synthetic_data.csv',
+            #         mime='text/csv',
+            #         )
+
+            
+
+
+
+
+
+
+
+
+
+            
+
+                # return synthetic_cvae,synthetic_vae,synthetic_copula,synthetic_fastml,synthetic_gaussian,synthetic_ctgan,synthetic_tvae
+
+        # synthetic_cvae,synthetic_vae,synthetic_copula,synthetic_fastml,synthetic_gaussian,synthetic_ctgan,synthetic_tvae = generate_synthetic_datas()
+        # cvae_sd=synthetic_cvae
+        # vae_sd=synthetic_vae
+        # copula_sd=synthetic_copula
+        # fast_sd=synthetic_fastml
+        # gaussian_sd=synthetic_gaussian
+        # ctgan_sd=synthetic_ctgan
+        # tvae_sd=synthetic_tvae
+            
+            # download_options = {
+            #     'CVAE':synthetic_cvae,
+            #     'VAE':synthetic_vae,
+            #     'CopulaGAN':synthetic_copula,
+            #     'FAST_ML':synthetic_fastml,
+            #     'Gaussian Copula':synthetic_gaussian,
+            #     'CTGAN':synthetic_ctgan,
+            #     'TVAE':synthetic_tvae
+            #     }
+
+        # download_options = {
+        #     'CVAE':cvae_sd,
+        #     'VAE':vae_sd,
+        #     'CopulaGAN':copula_sd,
+        #     'FAST_ML':fast_sd,
+        #     'Gaussian Copula':gaussian_sd,
+        #     'CTGAN':ctgan_sd,
+        #     'TVAE':tvae_sd
+        #     }
+
+           
+        # st.write("syn3:",syn3)
+        # st.write("syn4:",syn4)
+        # st.write("syn5:",syn5)
+        # st.write("syn6:",syn6)
+        # st.write("syn7:",syn7)
+
+        # st.write(synthetic_cvae)
+        # st.write(synthetic_vae)
+        # st.write(synthetic_copula)
+        # st.write(synthetic_fastml)
+        # st.write(synthetic_gaussian)
+        # st.write(synthetic_ctgan)
+        # st.write(synthetic_tvae)
+
+        # st.write('synthetic_copula:',synthetic_copula)
+        # st.write('synthetic_fastml:',synthetic_fastml)
+        # st.write('synthetic_gaussian:',synthetic_gaussian)
+        # st.write('synthetic_ctgan:',synthetic_ctgan)
+        # st.write('synthetic_tvae:',synthetic_tvae)
+
+
+        # download_option = st.selectbox("Which synthetic data do you want to download?", list(download_options.keys()))
+        # if st.button("Download CSV"):
+        #     selected_dataframe = download_options[download_option]
+        #     st.write(selected_dataframe)
+        #     if selected_dataframe is not None:
+        #         csv = selected_dataframe.to_csv(index=False)
+        #         b64 = base64.b64encode(csv.encode()).decode()
+        #         href = f'<a href="data:file/csv;base64,{b64}" download="{download_option}.csv">Download {download_option}</a>'
+        #         st.markdown(href, unsafe_allow_html=True)
+        #     else:
+        #         st.write("Selected synthetic dataset is not available.")
+
+            # download_option = st.selectbox("Which synthetic data do you want to download?", list(download_options.keys()))
+            # selected_dataframe = download_options[download_option]
+            # st.write(selected_dataframe)
+            # csv = convert_df(selected_dataframe)
+            # st.download_button(
+            #         label="Download CSV",
+            #         data=csv,
+            #         file_name='synthetic_data.csv',
+            #         mime='text/csv',
+            #         )
+
+
+
+
+        # download_option=st.selectbox("Which synthetic data you want to download?",
+        # ('CVAE', 'VAE', 'CopulaGAN', 'FAST_ML', 'Gaussian Copula', 'CTGAN', 'TVAE'))
+        # st.write(download_option)
+
+        # if download_option == 'CVAE':
+        #     csv = convert_df(synthetic)
+        #     st.download_button(
+        #         label="Download CSV",
+        #         data=csv,
+        #         file_name='synthetic_data_cvae.csv',
+        #         mime='text/csv',
+        #         )
+        # elif download_option == 'VAE':
+        #     csv = convert_df(synthetic_vae)
+        #     st.download_button(
+        #         label="Download CSV",
+        #         data=csv,
+        #         file_name='synthetic_data_vae.csv',
+        #         mime='text/csv',
+        #         )
+                
+        # elif download_option == 'CopulaGAN':
+        #     csv = convert_df(synthetic_copula)
+        #     st.download_button(
+        #         label="Download CSV",
+        #         data=csv,
+        #         file_name='synthetic_data_copula.csv',
+        #         mime='text/csv',
+        #         )
+                
+        # elif download_option == 'FAST_ML':
+        #     csv = convert_df(synthetic_fastml)
+        #     st.download_button(
+        #         label="Download CSV",
+        #         data=csv,
+        #         file_name='synthetic_data_fastml.csv',
+        #          mime='text/csv',
+        #         )
+                
+        # elif download_option == 'Gaussian Copula':
+        #     csv = convert_df(synthetic_gaussian)
+        #     st.download_button(
+        #         label="Download CSV",
+        #         data=csv,
+        #         file_name='synthetic_data_gaussian.csv',
+        #         mime='text/csv',
+        #         )
+                
+        # elif download_option == 'CTGAN':
+        #     csv = convert_df(synthetic_ctgan)
+        #     st.download_button(
+        #         label="Download CSV",
+        #         data=csv,
+        #         file_name='synthetic_data_ctgan.csv',
+        #         mime='text/csv',
+        #         )
+                
+        # elif download_option == 'TVAE':
+        #     csv = convert_df(synthetic_tvae)
+        #     st.download_button(
+        #         label="Download CSV",
+        #         data=csv,
+        #         file_name='synthetic_data_tvae.csv',
+        #         mime='text/csv',
+        #         )
+                
+
+            
+                            
+                
+
+
+
+
